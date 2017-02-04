@@ -1,0 +1,7 @@
+*.csv
+*.xls
+*.xlsx
+*.dta
+*.sav
+*.rds
+*.Rhistory
