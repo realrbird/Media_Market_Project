@@ -5,6 +5,7 @@ library(readxl)
 library(lubridate)
 library(stringr)
 library(data.table)
+library(haven)
 
 #*******************************************************************
 ##############################################################
@@ -251,19 +252,32 @@ bg_dummy <- function(x, var) {
   return(result)
 }
 
+rep_prim_dummy <- vector('integer', nrow(df_for_next_function))
 (a_now <- lubridate::now())
 rep_prim_dummy <- apply(df_for_next_function, 1, bg_dummy, var = sp_df$rep_prim)
 lubridate::now() - a_now
-df$rep_prim_dummy <- rep_prim_dummy; rm(rep_prim_dummy)
-df <- dplyr::select(df, date:dma_overlap, rep_prim_dummy, everything())
-df <- dplyr::rename(df, rep_battleground = rep_prim_dummy)
+df$rep_battleground <- rep_prim_dummy; rm(rep_prim_dummy)
+df <- dplyr::select(df, date:dma_overlap, rep_battleground, everything())
 
+dem_prim_dummy <- vector('integer', nrow(df_for_next_function))
 (a_now <- lubridate::now())
 dem_prim_dummy <- apply(df_for_next_function, 1, bg_dummy, var = sp_df$dem_prim)
 lubridate::now() - a_now
 df$dem_battleground <- dem_prim_dummy; rm(dem_prim_dummy)
 df <- dplyr::select(df, date:dma_overlap, dem_battleground, everything())
 
+df$any_battleground <- ifelse(is.na(df$rep_battleground) & is.na(df$dem_battleground), NA,
+                              ifelse(df$rep_battleground==1 | df$dem_battleground==1, 1, 0))
+
+
+
+# **********************************************
+# Write this new dataset to file
+# *********************************************
+
+# readr::write_rds(df, "Cleaned_Data.rds")  # To .rds file
+# readr::write_csv(df, "Cleaned_Data.csv")  # to .csv file
+# haven::write_dta(df, "Cleaned_Data.dta")  # To .dta (Stata) file
 
 
 
