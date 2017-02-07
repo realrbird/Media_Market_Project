@@ -5,7 +5,6 @@ library(readxl)
 library(lubridate)
 library(stringr)
 library(data.table)
-library(purrr)
 
 #*******************************************************************
 ##############################################################
@@ -40,21 +39,53 @@ library(purrr)
 #####################################################
 
 # Set working directory
-setwd("C:\\Users\\robert_bird\\Desktop\\Media Market Project\\PolAdFiles")
+setwd("C:\\Users\\robert_bird\\Desktop\\Media_Market_Project\\PolAdFiles")
 
 # Load in data
 ad_archive <- readr::read_rds("entire_data.rds")
+dd <- read_csv("C:\\Users\\robert_bird\\Desktop\\Media_Market_Project\\orig_data.csv")
 
+# Unique locationd
+orig_cities <- unique(dd$location)
+orig_cities <- orig_cities[1:25]; orig_cities
+
+# find coresponding dma codes for each city. Must be in same order as 'unique_cities'
+# Original dma_codes
+dma_codes <- c(839, 560, 539, 510, 637,504,751,617,807,753,506,511,534,
+               624,501,811,515,679,544,567,752,528, 517,546,573)
+
+# Set up a list with each city and its dma
+zip_vec <- function(vec1, vec2) {
+  stopifnot(length(vec1) == length(vec2))
+  alist <- list()
+  for (i in 1:length(vec1)) {
+    alist[[i]] <- c(Location = vec1[i], DMA = vec2[i])
+  }
+  return(alist)
+}
+
+#create list
+cities_dma_list <- zip_vec(orig_cities, dma_codes)
+cities_dma_list
+
+# remove orig_data 
+rm(dd)
+
+# find Unique values for location for the as_archive data
+unique_cities <- unique(ad_archive$location)
+unique_cities <- unique_cities[1:25]; unique_cities
+
+# Make sure orig_data locations and ad_archive locations are the same
+identical(sort(orig_cities), sort(unique_cities))
+# If it is, we can assign orig_cities to unique_cities and delete orig_cities
+unique_cities <- orig_cities; rm(orig_cities)
 
 # Convert from strings to datetimes
 ad_archive$start_time <- lubridate::as_datetime(ad_archive$start_time)
 ad_archive$end_time <- lubridate::as_datetime(ad_archive$end_time)
 
-# find Unique values for location
-unique_cities <- unique(ad_archive$location); unique_cities
-# find coresponding dma codes for each city. Must be in same order as 'unique_cities'
-dma_codes <- c(839, 560, 539, 510, 637,504,751,617,807,753,506,511,534,624,501,
-               811,515,679,544,567,752,528, 517,546,573)
+
+
 # Write function to create vector of dma codes for each location
 parse_dma <- function(loc) {
   if (is.na(loc)) {
@@ -93,7 +124,7 @@ dma_overlap <- sapply(ad_archive$dma, parse_overlap)
 ad_archive$dma_overlap <- dma_overlap
 
 # Create a Date variable in addition to the datetime variables
-ad_archive$date <- lubridate::as_date(ad_archive$date_created)
+ad_archive$date <- lubridate::as_date(ad_archive$start_time)
 
 # Add States for each ad based on DMA code
 parse_states <- function(adma) {
@@ -155,6 +186,9 @@ df$State_1 <- ifelse(df$State_1 == 'wa', "IA",
 # sort by 
 df <- dplyr::arrange(df, date)
 
+# We can remove all the old data now that we have out new data frame
+rm(States); rm(ad_archive); rm(states_df)
+
 # Create a list of primary Dates
 states <- c(state.name)
 state_abb <- c(state.abb)
@@ -182,12 +216,14 @@ sp_df$dem_prim <- as_date(sp_df$dem_prim)
 sp_df <- dplyr::arrange(sp_df, rep_prim, dem_prim)
 sp_df
 
+# Remove data we don't need 
+rm(states); rm(state_abb); rm(rep_prim); rm(dem_prim)
+
 
 # Set up data
 df_for_next_function <- dplyr::select(df, State_1:State_5,date); df_for_next_function
-test_df <- dplyr::sample_n(df_for_next_function,1000)
 
-bg_rep_dummy <- function(x, var) {
+bg_dummy <- function(x, var) {
   if (is.na(x[6])) {
   result <- NA
   }
@@ -215,23 +251,18 @@ bg_rep_dummy <- function(x, var) {
   return(result)
 }
 
-a_now <- lubridate::now()
-sample_test <- apply(test_df, 1, bg_rep_dummy, var = sp_df$rep_prim)
+(a_now <- lubridate::now())
+rep_prim_dummy <- apply(df_for_next_function, 1, bg_dummy, var = sp_df$rep_prim)
 lubridate::now() - a_now
+df$rep_prim_dummy <- rep_prim_dummy; rm(rep_prim_dummy)
+df <- dplyr::select(df, date:dma_overlap, rep_prim_dummy, everything())
+df <- dplyr::rename(df, rep_battleground = rep_prim_dummy)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+(a_now <- lubridate::now())
+dem_prim_dummy <- apply(df_for_next_function, 1, bg_dummy, var = sp_df$dem_prim)
+lubridate::now() - a_now
+df$dem_battleground <- dem_prim_dummy; rm(dem_prim_dummy)
+df <- dplyr::select(df, date:dma_overlap, dem_battleground, everything())
 
 
 
